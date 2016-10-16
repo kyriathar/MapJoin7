@@ -34,7 +34,8 @@ public class Main {
         int no_of_reducers = Integer.parseInt(args[1]);
         boolean firstTime =true;
         String separator = "\t";
-        Splitter splitter = Splitter.on('/');
+        int nextFileIndex = 0;
+        String nextFile = null;
         StringBuilder filePaths = new StringBuilder();
         Configuration config = new Configuration();
         FileSystem fs = FileSystem.get(config);
@@ -47,31 +48,36 @@ public class Main {
 
         //KeyFinder
         MyIndex myIndex ;
-
         Path path1 ;
         Path path2 ;
+        //Optimization
+        long num_of_joins = Cascade_setup.number_of_iterations(args[0], fs);
+        String[] filenames = Cascade_setup.create_filenames(args[0], num_of_joins + 1);
+        int[] max_pair = InputOptimization.Outer(filenames,fs, separator);
+        String firstFileName = filenames[max_pair[0]] ;
+        filenames[max_pair[0]] = null ;
+        nextFileIndex = max_pair[1] ;
 
         Job job = null;
-
         for( int i=1 ; i < fileCount ; i++  ) {           //i < 6
             if(firstTime) {
-                config.set(String.valueOf(i), "1");     //px file 1 -> proteraitotia 1
-                config.set(String.valueOf(i+1), "2");
-                filePaths.append(input+"1").append(",");
-                filePaths.append(input+"2").append(",");
-                path1 = new Path(input+"1");
-                path2 = new Path(input+"2");
+                config.set(String.valueOf(max_pair[0]+1), "1");     //px file 1 -> proteraitotia 1
+                config.set(String.valueOf(max_pair[1]+1), "2");
+                filePaths.append(firstFileName).append(",");
+                filePaths.append(filenames[max_pair[1]]).append(",");
+                path1 = new Path(firstFileName);
+                path2 = new Path(filenames[max_pair[1]]);
                 config.set("firstRep","yes");
                 //firstTime = false ;
             }else{
-                config.set(String.valueOf(i+1), "1");
+                config.set(String.valueOf(nextFileIndex+1), "1");
                 config.set("part-m-00000", "2");
-                filePaths.append(input+String.valueOf(i+1)).append(",");
+                filePaths.append(nextFile).append(",");
                 for(int j =0 ;fs.exists(new Path(String.valueOf(i+fileCount-1)+"m"+"/"+"part-m-" + String.format("%05d", j)));j++){
                     filePaths.append(String.valueOf(i+fileCount-1)+"m"+"/"+"part-m-" + String.format("%05d", j) + ",");
                 }
                 //filePaths.setLength(filePaths.length() - 1);
-                path1 = new Path(input+String.valueOf(i+1));                             //arxeio apo ta palia
+                path1 = new Path(nextFile);                             //arxeio apo ta palia
                 path2 = new Path(String.valueOf(i+fileCount-1)+"m"+"/"+"part-m-00000");         //arxeio apo ta nea
                 config.set("firstRep","no");
             }
@@ -90,7 +96,7 @@ public class Main {
             index2 = myIndex.getStr_list2();
 
             config.set(name1,index1);      // "keyIndex/1" ,"0"
-            config.set("simpleFile",String.valueOf(i+1));
+            config.set("simpleFile",String.valueOf(nextFileIndex+1));
             config.set(name2,index2);      // "keyIndex/2" , "0"
 
             myIndex.fixHeaders(path1,path2,config,Splitter.on(separator));
@@ -154,6 +160,10 @@ public class Main {
 
             //Delete Sorted Folder
             fs.delete(new Path(String.valueOf(i+fileCount)),true);
+
+            filenames[nextFileIndex] = null ;
+            nextFileIndex = InputOptimization.Inner(filenames, String.valueOf(i+fileCount)+"m",fs,separator);
+            nextFile = filenames[nextFileIndex];
 
             //Clear Variables
             config = new Configuration();

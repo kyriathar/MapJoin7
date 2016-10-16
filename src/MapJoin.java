@@ -29,6 +29,7 @@ public class MapJoin {
         private int joinOrder;
         private FatValue fatValue = new FatValue();
         private ArrayList<String> emptyList = new ArrayList<>();
+        StringBuilder builder = new StringBuilder();
 
         private String findMyKeyIndex(Context context){
             StringBuilder builder = new StringBuilder();
@@ -83,7 +84,7 @@ public class MapJoin {
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             List<String> values = Lists.newArrayList(splitter.split(value.toString()));     //kathe grammi
             String joinKey ;
-            StringBuilder builder = new StringBuilder();
+            builder.setLength(0);
             for(String keyIndex : indexList){
                 builder.append(values.get(Integer.parseInt(keyIndex))+"\t");
                 values.set(Integer.parseInt(keyIndex),"");      //kanei to keyIndex element keno
@@ -93,7 +94,7 @@ public class MapJoin {
             values.removeAll(emptyList);
             String valuesWithOutKey = joiner.join(values);
 
-            taggedKey.set(new Text(joinKey), new IntWritable(joinOrder));
+            taggedKey.set(joinKey, joinOrder);
             fatValue.set(valuesWithOutKey,joinOrder);
             context.write(taggedKey, fatValue);
         }
@@ -103,6 +104,7 @@ public class MapJoin {
         private MultipleOutputs<Text,Text> mos ;
         FatValue fatvalue ;
         private Text combinedText = new Text();
+        private Text keyOut = new Text();
 
         @Override
         protected void setup(Context context) throws IOException, InterruptedException {
@@ -117,9 +119,11 @@ public class MapJoin {
                 fatvalue = iter.next();
                 combinedText.set(fatvalue.toString());
                 if( fatvalue.getJoinOrder() == 1  ){
-                    context.write(key.getJoinKey(),combinedText); //sorted by key
+                    keyOut.set(key.getJoinKey());
+                    context.write(keyOut,combinedText); //sorted by key
                 }else{
-                    mos.write("file2",key.getJoinKey(),combinedText);
+                    keyOut.set(key.getJoinKey());
+                    mos.write("file2",keyOut,combinedText);
                 }
 
             }
